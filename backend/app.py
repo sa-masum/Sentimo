@@ -6,6 +6,7 @@ from flask_pymongo import PyMongo
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_bcrypt import Bcrypt
 from email.mime.text import MIMEText
+from bson import ObjectId
 import os
 import random
 import smtplib
@@ -17,9 +18,9 @@ CORS(app, supports_credentials=True)
 app.config["MONGO_URI"] = os.getenv("MONGO_URI")
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
 app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
-app.config["JWT_COOKIE_SECURE"] = False  # True if using HTTPS
+app.config["JWT_COOKIE_SECURE"] = False 
 app.config["JWT_ACCESS_COOKIE_NAME"] = "token"
-app.config["JWT_COOKIE_CSRF_PROTECT"] = False  # For development only
+app.config["JWT_COOKIE_CSRF_PROTECT"] = False
 
 mongo = PyMongo(app)
 jwt = JWTManager(app)
@@ -137,6 +138,35 @@ def analyze():
         })
 
     return jsonify({"sentiment": sentiment}), 200
+
+@app.route("/profile", methods=["GET"])
+@jwt_required()
+def profile():
+    user_id = get_jwt_identity()
+    try:
+        user = mongo.db.User.find_one({"_id": ObjectId(user_id)}, {"password": 0})
+    except Exception:
+        return jsonify({"error": "Invalid user id"}), 400
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    return jsonify({
+        "email": user["email"],
+        "username": user["username"]
+    }), 200
+
+@app.route("/profile", methods=["DELETE"])
+@jwt_required()
+def delete_profile():
+    user_id = get_jwt_identity()
+    try:
+        result = mongo.db.User.delete_one({"_id": ObjectId(user_id)})
+        mongo.db.Sentiments.delete_many({"user_id": user_id})
+    except Exception:
+        return jsonify({"error": "Failed to delete account"}), 500
+    if result.deleted_count == 0:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({"message": "Account deleted"}), 200
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -6,6 +6,7 @@ import Home from './pages/Home'
 import Analyze from './pages/Analyze'
 import Register from './pages/Register'
 import Login from './pages/Login'
+import Profile from './pages/Profile'
 
 function App() {
   const [count, setCount] = useState(0)
@@ -17,6 +18,7 @@ function App() {
         <Route path="/analyze" element={<Analyze />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
     </Router>
   )
