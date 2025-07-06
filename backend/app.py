@@ -3,7 +3,7 @@ load_dotenv()
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-from flask_jwt_extended import JWTManager
+from flask_jwt_extended import JWTManager, create_access_token
 from flask_bcrypt import Bcrypt
 from email.mime.text import MIMEText
 import os
@@ -87,6 +87,29 @@ def register():
 
     otp_store.pop(email, None)
     return jsonify({"message": "Registration successful"}), 201
+
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    identifier = data.get("identifier")
+    password = data.get("password")
+
+    if not identifier or not password:
+        return jsonify({"error": "All fields are required"}), 400
+
+    user_col = mongo.db.User
+    user = user_col.find_one({
+        "$or": [
+            {"email": identifier},
+            {"username": identifier}
+        ]
+    })
+
+    if not user or not bcrypt.check_password_hash(user["password"], password):
+        return jsonify({"error": "Invalid credentials"}), 401
+
+    access_token = create_access_token(identity=str(user["_id"]))
+    return jsonify({"token": access_token}), 200
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
