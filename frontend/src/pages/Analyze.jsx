@@ -3,6 +3,13 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import Header from '../components/Header';
 
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return null;
+}
+
 const Home = () => {
   const [text, setText] = useState('');
   const [sentiment, setSentiment] = useState('');
@@ -16,14 +23,10 @@ const Home = () => {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
-
       const res = await axios.post(
         "http://localhost:5000/analyze",
         { text },
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        }
+        { withCredentials: true }
       );
 
       setSentiment(res.data.sentiment);
@@ -33,6 +36,12 @@ const Home = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Clear sentiment when user types new text
+  const handleTextChange = (e) => {
+    setText(e.target.value);
+    setSentiment('');
   };
 
   return (
@@ -50,7 +59,7 @@ const Home = () => {
             className="w-full h-40 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none text-gray-800 text-base shadow-sm transition"
             placeholder="Type your text here..."
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={handleTextChange}
           />
           <div className="flex justify-center mt-6">
             <button

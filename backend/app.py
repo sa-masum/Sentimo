@@ -1,9 +1,9 @@
 from dotenv import load_dotenv
 load_dotenv()
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-from flask_jwt_extended import JWTManager, create_access_token
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_bcrypt import Bcrypt
 from email.mime.text import MIMEText
 import os
@@ -12,10 +12,14 @@ import smtplib
 
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, supports_credentials=True)
 
 app.config["MONGO_URI"] = os.getenv("MONGO_URI")
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")
+app.config["JWT_TOKEN_LOCATION"] = ["cookies", "headers"]
+app.config["JWT_COOKIE_SECURE"] = False  # True if using HTTPS
+app.config["JWT_ACCESS_COOKIE_NAME"] = "token"
+app.config["JWT_COOKIE_CSRF_PROTECT"] = False  # For development only
 
 mongo = PyMongo(app)
 jwt = JWTManager(app)
@@ -109,9 +113,12 @@ def login():
         return jsonify({"error": "Invalid credentials"}), 401
 
     access_token = create_access_token(identity=str(user["_id"]))
-    return jsonify({"token": access_token}), 200
+    resp = make_response(jsonify({"token": access_token}), 200)
+    resp.set_cookie("token", access_token, httponly=True, samesite="Lax")
+    return resp
 
 @app.route("/analyze", methods=["POST"])
+@jwt_required(optional=True)
 def analyze():
     data = request.get_json()
     text = data.get("text", "")
@@ -120,6 +127,14 @@ def analyze():
         return jsonify({"error": "Text is required"}), 400
 
     sentiment = "Positive" if "good" in text.lower() else "Negative"
+
+    user_id = get_jwt_identity()
+    if user_id:
+        mongo.db.Sentiments.insert_one({
+            "user_id": user_id,
+            "text": text,
+            "sentiment": sentiment
+        })
 
     return jsonify({"sentiment": sentiment}), 200
 
