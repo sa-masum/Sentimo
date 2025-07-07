@@ -186,5 +186,10 @@ def delete_history(sid):
         return jsonify({"error": "Not found"}), 404
     return jsonify({"message": "Deleted"}), 200
 
+@app.route("/model-accuracy", methods=["GET"])
+def model_accuracy():
+    
+    return jsonify({"accuracy": 0}), 200
+
 if __name__ == "__main__":
     app.run(debug=True)
