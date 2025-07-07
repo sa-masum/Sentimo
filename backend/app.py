@@ -168,5 +168,23 @@ def delete_profile():
         return jsonify({"error": "User not found"}), 404
     return jsonify({"message": "Account deleted"}), 200
 
+@app.route("/history", methods=["GET"])
+@jwt_required()
+def get_history():
+    user_id = get_jwt_identity()
+    sentiments = list(mongo.db.Sentiments.find({"user_id": user_id}))
+    for s in sentiments:
+        s["_id"] = str(s["_id"])
+    return jsonify({"history": sentiments}), 200
+
+@app.route("/history/<sid>", methods=["DELETE"])
+@jwt_required()
+def delete_history(sid):
+    user_id = get_jwt_identity()
+    result = mongo.db.Sentiments.delete_one({"_id": ObjectId(sid), "user_id": user_id})
+    if result.deleted_count == 0:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({"message": "Deleted"}), 200
+
 if __name__ == "__main__":
     app.run(debug=True)
