@@ -10,6 +10,11 @@ from bson import ObjectId
 import os
 import random
 import smtplib
+import joblib
+
+model = joblib.load("model/sentiment_model.pkl")
+vectorizer = joblib.load("model/tfidf_vectorizer.pkl")
+model_accuracy_value = getattr(model, "accuracy", None)
 
 
 app = Flask(__name__)
@@ -30,7 +35,6 @@ bcrypt = Bcrypt(app)
 otp_store = {}
 
 def send_otp_email(email, otp):
-    # Replace with your SMTP server details
     smtp_server = "smtp.gmail.com"
     smtp_port = 587
     smtp_user = os.getenv("SMTP_USER")
@@ -127,7 +131,26 @@ def analyze():
     if not text.strip():
         return jsonify({"error": "Text is required"}), 400
 
-    sentiment = "Positive" if "good" in text.lower() else "Negative"
+    # Use ML model
+    try:
+        X = vectorizer.transform([text])
+        pred = model.predict(X)[0]
+        if hasattr(model, "predict_proba"):
+            proba = model.predict_proba(X)[0]
+            confidence = float(max(proba))
+        else:
+            confidence = None
+
+        if pred == 0:
+            sentiment = "Negative"
+        elif pred == 1:
+            sentiment = "Neutral"
+        elif pred == 2:
+            sentiment = "Positive"
+        else:
+            sentiment = str(pred).capitalize()
+    except Exception as e:
+        return jsonify({"error": f"Model error: {str(e)}"}), 500
 
     user_id = get_jwt_identity()
     if user_id:
@@ -137,7 +160,10 @@ def analyze():
             "sentiment": sentiment
         })
 
-    return jsonify({"sentiment": sentiment}), 200
+    response = {"sentiment": sentiment}
+    if confidence is not None:
+        response["confidence"] = confidence
+    return jsonify(response), 200
 
 @app.route("/profile", methods=["GET"])
 @jwt_required()
@@ -188,8 +214,10 @@ def delete_history(sid):
 
 @app.route("/model-accuracy", methods=["GET"])
 def model_accuracy():
-    
-    return jsonify({"accuracy": 0}), 200
+    if model_accuracy_value is not None:
+        return jsonify({"accuracy": model_accuracy_value}), 200
+    else:
+        return jsonify({"error": "Accuracy not available"}), 404
 
 if __name__ == "__main__":
     app.run(debug=True)
